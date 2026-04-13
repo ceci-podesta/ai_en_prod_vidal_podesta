@@ -10,7 +10,7 @@ pozo = Entity(
 
 # ── Fuente de datos (offline store) ──
 well_stats_source = FileSource(
-    path="/opt/airflow/feature_store/data/well_features.parquet",
+    path="/app/feature_store/data/well_features.parquet",
     timestamp_field="fecha",
 )
 
