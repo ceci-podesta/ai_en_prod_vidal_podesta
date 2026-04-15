@@ -63,25 +63,3 @@ Ver documentación completa en `/docs` con el sistema levantado.
 
 
 
-limpiar antes de correr: docker-compose down mlflow -v 
-
-cp .env.example .env
-
-docker-compose up mlflow -d
-
-docker-compose --profile training run --rm -v $(pwd)/scripts:/app/scripts trainer python /app/scripts/prepare_data.py
-
-
-
-docker-compose --profile training run --rm trainer feast -c /app/feature_store apply
-
-cd /mnt/c/Users/Maria/Documents/MIA_UDESA_VIDAL/IA_produccion/ai_en_prod_vidal_podesta
-
-
-docker-compose down -v
-docker-compose build --no-cache
-docker-compose up mlflow -d
-docker-compose --profile training run --rm trainer python training/scripts/prepare_data.py
-docker-compose --profile training run --rm trainer feast -c feature_store apply
-
-docker-compose --profile training run --rm trainer python -u training/train.py --date 2024-01-31

@@ -20,11 +20,12 @@ services:
     depends_on:
       - mlflow
     environment:
-      MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI}
+      MLFLOW_TRACKING_URI: http://mlflow:5000
     ports:
       - "8000:8000"
     volumes:
       - ./feature_store:/app/feature_store
+      - mlflow_data:/mlflow/data   
 
   trainer:
     build:
@@ -33,9 +34,10 @@ services:
     depends_on:
       - mlflow
     environment:
-      MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI}
+      MLFLOW_TRACKING_URI: http://mlflow:5000
     volumes:
-      - .:/app  
+      - .:/app
+      - mlflow_data:/mlflow/data
     profiles:
       - training
 

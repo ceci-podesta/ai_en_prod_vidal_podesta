@@ -37,8 +37,7 @@ def train(training_date: str):
     raw_df["fecha"] = pd.to_datetime(raw_df["fecha"])
     cutoff = pd.to_datetime(training_date)
     raw_df = raw_df[raw_df["fecha"] <= cutoff]
-   # raw_df = raw_df.sample(20000, random_state=42)
-    raw_df = raw_df[raw_df["fecha"] >= "2024-01-01"]
+
 
 
     print("Raw DF shape:", raw_df.shape)
@@ -60,6 +59,9 @@ def train(training_date: str):
     training_df.columns = [c.split("__")[-1] for c in training_df.columns]
 
     training_df = training_df.dropna(subset=TARGETS)
+
+    training_df = training_df.sort_values("event_timestamp")
+
 
     X = training_df[FEATURES]
     y = training_df[TARGETS]
