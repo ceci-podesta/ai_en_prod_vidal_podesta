@@ -37,6 +37,11 @@ def train(training_date: str):
     raw_df["fecha"] = pd.to_datetime(raw_df["fecha"])
     cutoff = pd.to_datetime(training_date)
     raw_df = raw_df[raw_df["fecha"] <= cutoff]
+   # raw_df = raw_df.sample(20000, random_state=42)
+    raw_df = raw_df[raw_df["fecha"] >= "2024-01-01"]
+
+
+    print("Raw DF shape:", raw_df.shape)
 
     entity_df = raw_df[["idpozo", "fecha", "prod_gas", "prod_pet"]].copy()
     entity_df = entity_df.rename(columns={"fecha": "event_timestamp"})
@@ -48,6 +53,9 @@ def train(training_date: str):
         entity_df=entity_df,
         features=feast_features,
     ).to_df()
+
+    print("Training DF shape:", training_df.shape)
+    print(training_df.head())
 
     training_df.columns = [c.split("__")[-1] for c in training_df.columns]
 

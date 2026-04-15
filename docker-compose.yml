@@ -27,14 +27,15 @@ services:
       - ./feature_store:/app/feature_store
 
   trainer:
-    build: ./training
+    build:
+      context: .
+      dockerfile: training/Dockerfile
     depends_on:
       - mlflow
     environment:
       MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI}
     volumes:
-      - ./feature_store:/app/feature_store
-      - ./training:/app
+      - .:/app  
     profiles:
       - training
 
