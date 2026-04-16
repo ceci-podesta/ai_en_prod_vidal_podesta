@@ -38,6 +38,10 @@ def train(training_date: str):
     cutoff = pd.to_datetime(training_date)
     raw_df = raw_df[raw_df["fecha"] <= cutoff]
 
+
+
+    print("Raw DF shape:", raw_df.shape)
+
     entity_df = raw_df[["idpozo", "fecha", "prod_gas", "prod_pet"]].copy()
     entity_df = entity_df.rename(columns={"fecha": "event_timestamp"})
 
@@ -49,9 +53,15 @@ def train(training_date: str):
         features=feast_features,
     ).to_df()
 
+    print("Training DF shape:", training_df.shape)
+    print(training_df.head())
+
     training_df.columns = [c.split("__")[-1] for c in training_df.columns]
 
     training_df = training_df.dropna(subset=TARGETS)
+
+    training_df = training_df.sort_values("event_timestamp")
+
 
     X = training_df[FEATURES]
     y = training_df[TARGETS]
