@@ -20,6 +20,7 @@ FEATURES = [
     "last_prod_pet", "n_readings",
 ]
 TARGETS = ["prod_gas", "prod_pet"]
+MAX_TRAINING_ROWS = 100_000
 
 
 def train(training_date: str):
@@ -37,6 +38,11 @@ def train(training_date: str):
     raw_df["fecha"] = pd.to_datetime(raw_df["fecha"])
     cutoff = pd.to_datetime(training_date)
     raw_df = raw_df[raw_df["fecha"] <= cutoff]
+
+    # Limitar filas para controlar uso de memoria en el join de feast
+    if len(raw_df) > MAX_TRAINING_ROWS:
+        raw_df = raw_df.sample(n=MAX_TRAINING_ROWS, random_state=42)
+        print(f"Dataset sampleado a {MAX_TRAINING_ROWS} filas.")
 
 
 
@@ -73,7 +79,7 @@ def train(training_date: str):
         mlflow.set_tag("training_cutoff_date", training_date)
 
         params = {"n_estimators": 100, "random_state": 42, "n_jobs": -1}
-        mlflow.log_params(params)
+        mlflow.log_params({**params, "max_training_rows": MAX_TRAINING_ROWS})
 
         base_model = RandomForestRegressor(**params)
         model = MultiOutputRegressor(base_model)
@@ -94,18 +100,24 @@ def train(training_date: str):
         print(f"prod_gas  → R2: {r2_gas:.4f} | RMSE: {rmse_gas:.2f}")
         print(f"prod_pet  → R2: {r2_pet:.4f} | RMSE: {rmse_pet:.2f}")
 
-        mlflow.sklearn.log_model(
-            sk_model=model,
-            artifact_path="model",
-            registered_model_name=MODEL_NAME,
-        )
+        # Guardamos el modelo como artefacto del run (API clásica) y lo registramos
+        # por separado para evitar el code path de "Logged Models" de MLflow 3.x
+        # que escribe a /mlflow (inaccesible desde el worker de Airflow).
+        import tempfile, os as _os
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            model_dir = _os.path.join(tmp_dir, "model")
+            mlflow.sklearn.save_model(model, model_dir)
+            mlflow.log_artifacts(model_dir, artifact_path="model")
+
+        run_id = mlflow.active_run().info.run_id
+        model_uri = f"runs:/{run_id}/model"
 
         client = mlflow.tracking.MlflowClient()
-        latest = client.search_model_versions(f"name='{MODEL_NAME}'")[0]
-        client.set_registered_model_alias(MODEL_NAME, "production", latest.version)
+        mv = mlflow.register_model(model_uri, MODEL_NAME)
+        client.set_registered_model_alias(MODEL_NAME, "production", mv.version)
 
         print(f"Modelo registrado en MLflow como '{MODEL_NAME}' con alias 'production'.")
-        print(f"Versión: {latest.version}")
+        print(f"Versión: {mv.version}")
 
 
 if __name__ == "__main__":

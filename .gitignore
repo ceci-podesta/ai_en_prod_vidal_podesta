@@ -16,6 +16,11 @@ training/model/
 
 # MLflow local
 mlruns/
+mlflow_artifacts/
+
+# Airflow
+logs/
+plugins
 
 # Sistema
 .DS_Store

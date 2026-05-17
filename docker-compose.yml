@@ -6,13 +6,17 @@ services:
       - "5000:5000"
     volumes:
       - mlflow_data:/mlflow/data
+      - mlflow_artifacts:/mlflow/artifacts
     command: >
+      bash -c "
+      chmod 777 /mlflow/artifacts &&
       mlflow server
       --backend-store-uri sqlite:////mlflow/data/mlflow.db
-      --default-artifact-root /mlflow/data/mlruns
+      --default-artifact-root /mlflow/artifacts
       --host 0.0.0.0
       --port 5000
-      --allowed-hosts "*"
+      --allowed-hosts \"*\"
+      "
     restart: always
 
   api:
@@ -25,7 +29,7 @@ services:
       - "8000:8000"
     volumes:
       - ./feature_store:/app/feature_store
-      - mlflow_data:/mlflow/data   
+      - mlflow_artifacts:/mlflow/artifacts
 
   trainer:
     build:
@@ -37,7 +41,7 @@ services:
       MLFLOW_TRACKING_URI: http://mlflow:5000
     volumes:
       - .:/app
-      - mlflow_data:/mlflow/data
+      - mlflow_artifacts:/mlflow/artifacts
     profiles:
       - training
   
@@ -50,11 +54,17 @@ services:
       POSTGRES_DB: airflow
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 10s
+      retries: 5
+      start_period: 5s
 
   airflow-init:
-    image: apache/airflow:2.9.3
+    build: ./airflow
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
@@ -66,48 +76,50 @@ services:
     entrypoint: >
       bash -c "
       airflow db migrate &&
-      airflow users create --username admin --password admin --firstname admin --lastname admin --role Admin --email admin@example.com
+      airflow users create --username admin --password admin --firstname admin --lastname admin --role Admin --email admin@example.com || true
       "
-    
+    restart: "no"
 
   airflow-webserver:
-    image: apache/airflow:2.9.3
+    build: ./airflow
     depends_on:
-      - postgres
-      - airflow-init
+      airflow-init:
+        condition: service_completed_successfully
     ports:
       - "8080:8080"
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+      MLFLOW_TRACKING_URI: http://mlflow:5000
       PYTHONPATH: /app
-
     volumes:
       - ./dags:/opt/airflow/dags
       - ./logs:/opt/airflow/logs
       - ./plugins:/opt/airflow/plugins
       - .:/app
-      - /var/run/docker.sock:/var/run/docker.sock
     command: webserver
-
+    restart: always
 
   airflow-scheduler:
-    image: apache/airflow:2.9.3
+    build: ./airflow
     depends_on:
-      - postgres
-      - airflow-init
+      airflow-init:
+        condition: service_completed_successfully
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+      MLFLOW_TRACKING_URI: http://mlflow:5000
       PYTHONPATH: /app
     volumes:
       - ./dags:/opt/airflow/dags
       - ./logs:/opt/airflow/logs
       - ./plugins:/opt/airflow/plugins
       - .:/app
-      - /var/run/docker.sock:/var/run/docker.sock
+      - mlflow_artifacts:/mlflow/artifacts
     command: scheduler
+    restart: always
 
 volumes:
   mlflow_data:
+  mlflow_artifacts:
   postgres_data:
