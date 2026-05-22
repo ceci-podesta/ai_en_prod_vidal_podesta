@@ -42,7 +42,7 @@ def get_forecast(id_well: str, start: date, end: date):
 
         results.append({
             "date": d.date().isoformat(),
-            "prod": float(pred[0]) if len(pred) > 1 else float(pred),
+            "prod": float(pred[1]) if len(pred) > 1 else float(pred),
         })
 
     return {

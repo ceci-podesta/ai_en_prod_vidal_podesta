@@ -4,4 +4,5 @@ mlflow==3.11.1
 pandas==2.3.3
 numpy==2.4.4
 feast==0.62.0
+scikit-learn==1.7.2
 
