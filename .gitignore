@@ -20,8 +20,11 @@ mlflow_artifacts/
 
 # Airflow
 logs/
-plugins
+plugins/
 
 # Sistema
 .DS_Store
 *.log
+
+# resultados monitoreo
+reports/
