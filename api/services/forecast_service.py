@@ -10,9 +10,22 @@ from feast import FeatureStore
 
 MODEL_NAME = "oil_gas_forecast"
 
+_model = None
+_store = None
 
-model = mlflow.pyfunc.load_model(f"models:/{MODEL_NAME}@production")
-store = FeatureStore(repo_path="feature_store")
+
+def _get_model():
+    global _model
+    if _model is None:
+        _model = mlflow.pyfunc.load_model(f"models:/{MODEL_NAME}@production")
+    return _model
+
+
+def _get_store():
+    global _store
+    if _store is None:
+        _store = FeatureStore(repo_path="/app/feature_store")
+    return _store
 
 
 FEATURES = [
@@ -38,6 +51,9 @@ def monthly_dates(start: date, end: date):
 def get_forecast(id_well: str, start: date, end: date):
     results = []
 
+
+    model = _get_model()
+    store = _get_store()
 
     for d in monthly_dates(start, end):
         entity_row = [
@@ -69,3 +85,4 @@ def get_forecast(id_well: str, start: date, end: date):
 
 
     return results
+
