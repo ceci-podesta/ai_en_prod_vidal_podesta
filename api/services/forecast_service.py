@@ -1,6 +1,7 @@
 from datetime import date
 
 
+import mlflow
 import mlflow.pyfunc
 import pandas as pd
 from feast import FeatureStore
@@ -11,13 +12,20 @@ from feast import FeatureStore
 MODEL_NAME = "oil_gas_forecast"
 
 _model = None
+_model_version = None
 _store = None
 
 
 def _get_model():
-    global _model
-    if _model is None:
-        _model = mlflow.pyfunc.load_model(f"models:/{MODEL_NAME}@production")
+    global _model, _model_version
+
+    client = mlflow.tracking.MlflowClient()
+    production_version = client.get_model_version_by_alias(MODEL_NAME, "production").version
+
+    if _model is None or _model_version != production_version:
+        _model = mlflow.pyfunc.load_model(f"models:/{MODEL_NAME}/{production_version}")
+        _model_version = production_version
+
     return _model
 
 
