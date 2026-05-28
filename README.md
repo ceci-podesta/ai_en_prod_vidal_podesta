@@ -174,7 +174,8 @@ El entrenamiento recibe una fecha de corte y usa datos con `fecha <= training_cu
 
 MLflow registra parámetros, métricas (RMSE, MAE, R²), artefactos del modelo y lo registra como `oil_gas_forecast` con alias `production`.
 
-![MLflow model registry con alias production](docs/screenshots/mlflow_model_registry.png)
+<img width="1321" height="435" alt="image" src="https://github.com/user-attachments/assets/249f3b42-47f1-4671-a78f-d7788c170982" />
+
 
 ---
 
@@ -232,7 +233,8 @@ El DAG genera automáticamente un reporte de monitoreo después de cada entrenam
 - **Concept drift:** cambios en la media y dispersión de residuos (`y_real - y_pred`) entre ventanas
 
 
-![MLflow artifacts del reporte de monitoreo](docs/screenshots/mlflow_monitoring_artifacts.png)
+<img width="1918" height="772" alt="image" src="https://github.com/user-attachments/assets/31f80cdd-f525-4ee0-b80f-b6abe1c228b1" />
+
 
 ---
 
@@ -322,9 +324,11 @@ El campo `prod` representa la producción mensual estimada de gas (m³). El valo
 
 La UI interactiva con todos los endpoints está en http://localhost:8000/docs.
 
-![API Swagger con endpoints disponibles](docs/screenshots/api_swagger.png)
+<img width="1573" height="693" alt="image" src="https://github.com/user-attachments/assets/ba587ba2-d223-4db0-80b9-fef8f5f7db85" />
 
-![Respuesta del endpoint forecast](docs/screenshots/api_forecast_response.png)
+
+<img width="1263" height="893" alt="image" src="https://github.com/user-attachments/assets/43c5ed3f-8a1f-4860-8b10-6b540e674d38" />
+
 
 ---
 
