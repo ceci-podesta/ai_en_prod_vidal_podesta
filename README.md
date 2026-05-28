@@ -117,7 +117,8 @@ Buscá el DAG `ml_pipeline`, activalo (toggle ON) y disparalo con el botón ▶.
 
 Cuando todas las tasks terminen en verde, el pipeline corrió exitosamente:
 
-![Airflow DAG completo en verde](docs/screenshots/airflow_dag_green.png)
+<img width="1908" height="947" alt="image" src="https://github.com/user-attachments/assets/b2af1382-9bdf-49da-97be-29bf06b71695" />
+
 
 Para reproducir la simulación con monitoreo, usá este comando desde la terminal:
 
