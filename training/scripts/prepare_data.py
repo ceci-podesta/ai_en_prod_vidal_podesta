@@ -64,7 +64,7 @@ def prepare_offline_store():
         online_rec['avg_prod_pet_10m'] = float(tail_window['prod_pet'].mean())
         online_rec['last_prod_gas'] = float(tail_window['prod_gas'].iloc[-1])
         online_rec['last_prod_pet'] = float(tail_window['prod_pet'].iloc[-1])
-        online_rec['n_readings'] = int(len(tail_window))
+        online_rec['n_readings'] = int(group['n_readings'].iloc[-1] + 1)
         online_rows.append(online_rec)
 
     online_df = pd.DataFrame(online_rows)

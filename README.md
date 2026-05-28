@@ -26,7 +26,7 @@ El sistema corre localmente con Docker Compose. Los servicios permanentes son:
 | `airflow-scheduler` | Ejecutor del DAG |
 | `api` | FastAPI + Ray Serve para inferencia escalable |
 
-El flujo completo está orquestado en el DAG `ml_pipeline`, configurado con `schedule="@monthly"` y `catchup=False`. Esto significa que Airflow ejecuta el pipeline automáticamente el primer día de cada mes, reentrenando el modelo con los datos disponibles hasta esa fecha. No requiere intervención manual para las corridas regulares.
+El flujo completo está orquestado en el DAG `ml_pipeline`, configurado con `schedule="@monthly"` y `catchup=False`. Esto significa que Airflow ejecuta el pipeline automáticamente una vez por mes, cuando el DAG está activo, reentrenando el modelo con los datos disponibles hasta la fecha de corrida. No requiere intervención manual para las corridas regulares.
 
 El DAG ejecuta en orden:
 
@@ -49,6 +49,8 @@ Dataset de Producción de Pozos de Gas y Petróleo No Convencional, publicado po
 
 - Docker Desktop instalado y abierto.
 - En Windows: WSL2 con Ubuntu y Docker Desktop con integración WSL2 habilitada. Todos los comandos deben correrse desde la terminal de WSL.
+
+> Nota WSL: en algunos entornos Docker Desktop expone Compose como `docker-compose` en lugar de `docker compose`. Si `docker compose` no funciona, reemplazarlo por `docker-compose` en todos los comandos.
 
 ---
 
@@ -73,9 +75,10 @@ sudo chown -R "$USER":"$USER" logs plugins reports feature_store/data || true
 chmod -R 777 logs plugins reports feature_store/data
 ```
 
-### 3. Buildear las imágenes
+### 3. Validar configuración y buildear las imágenes
 
 ```bash
+docker compose config
 docker compose build
 ```
 
@@ -95,7 +98,7 @@ Estado esperado:
 | `airflow-webserver` | Up |
 | `airflow-scheduler` | Up |
 | `airflow-init` | Exited (0) ← correcto, solo inicializa y termina |
-| `api` | Up o Exited (1) ← puede estar caída hasta que exista un modelo |
+| `api` | Up |
 
 ### 5. Limpiar la base de datos de MLflow (solo la primera vez)
 
@@ -140,13 +143,13 @@ Como el dataset llega hasta `2026-04-01`, esto permite simular seis meses poster
 
 El primer run tarda varios minutos porque descarga el CSV completo (~400k filas) y entrena el modelo.
 
-### 7. Reiniciar la API después de que termine el DAG
+### 7. Verificar la API después de que termine el DAG
 
 ```bash
-docker compose restart api
+curl -s -o /dev/null -w "HTTP %{http_code}\n" http://localhost:8000/docs
 ```
 
-La API carga el modelo en el primer request (lazy loading), no al arrancar. Esto significa que queda disponible inmediatamente después del restart, pero la primera llamada al endpoint de forecast tardará unos segundos mientras carga el modelo desde MLflow.
+La API carga el modelo desde MLflow con lazy loading. En cada request verifica qué versión está asociada al alias `production`; si Airflow entrenó un modelo nuevo y actualizó ese alias, la API recarga automáticamente la nueva versión antes de responder.
 
 ---
 
@@ -172,7 +175,7 @@ La API expone únicamente `prod_gas` como el campo `prod` de la respuesta.
 
 El entrenamiento recibe una fecha de corte y usa datos con `fecha <= training_cutoff`. Para controlar el uso de memoria, el entrenamiento toma hasta `100_000` filas del dataset (por tema de recursos computacionales). Si el dataset tiene más filas, se hace un muestreo aleatorio con semilla fija.
 
-MLflow registra parámetros, métricas (RMSE, MAE, R²), artefactos del modelo y lo registra como `oil_gas_forecast` con alias `production`.
+MLflow registra parámetros, métricas de performance (RMSE y R²), cantidad de muestras de entrenamiento (`n_samples`), artefactos del modelo y lo registra como `oil_gas_forecast` con alias `production`.
 
 <img width="1321" height="435" alt="image" src="https://github.com/user-attachments/assets/249f3b42-47f1-4671-a78f-d7788c170982" />
 
@@ -201,7 +204,7 @@ Las features de producción usan `shift(1)`: para un pozo-mes `n`, se calculan c
 
 ## Monitoreo de model decay y drift
 
-El DAG genera automáticamente un reporte de monitoreo después de cada entrenamiento. Compara una ventana baseline anterior al `training_cutoff` contra una ventana posterior de monitoreo. Los parametros seteados por default son 18 meses antes del `training_cutoff` para el baseline, y 6 meses posteriores (simulacion de data productiva) para la ventana de monitoreo (ver sección 6). 
+El DAG genera automáticamente un reporte de monitoreo después de cada entrenamiento. Para una corrida mensual real, el reporte compara una ventana baseline anterior al `training_cutoff` contra los datos posteriores disponibles. Como el dataset público está cerrado hasta `2026-04-01`, para demostrar model decay, data drift y concept drift en la entrega usamos una corrida de backtesting con `training_cutoff="2025-10-01"`, `baseline_months=18` y `monitoring_months=6`. Así quedan seis meses posteriores al entrenamiento (`2025-11-01` a `2026-04-01`) para evaluar degradación.
 
 ### Ver el reporte en MLflow
 
@@ -337,7 +340,8 @@ La UI interactiva con todos los endpoints está en http://localhost:8000/docs.
 MLflow registra en cada entrenamiento:
 
 - **Parámetros:** `n_estimators`, `random_state`, `n_jobs`, `max_training_rows`
-- **Métricas:** `rmse_gas`, `rmse_pet`, `r2_gas`, `r2_pet`
+- **Métricas de performance:** `rmse_prod_gas`, `rmse_prod_pet`, `r2_prod_gas`, `r2_prod_pet`
+- **Diagnóstico del entrenamiento:** `n_samples`
 - **Tags:** `training_cutoff_date`
 - **Artefactos:** modelo serializado (sklearn)
 - **Model Registry:** modelo registrado como `oil_gas_forecast` con alias `production`
@@ -348,11 +352,11 @@ MLflow registra en cada entrenamiento:
 
 **Feature store compartido entre train y serve.** Las features se generan una vez y se persisten en Feast. Tanto entrenamiento como inferencia consumen del mismo store, evitando training-serving skew.
 
-**Fecha de corte configurable.** El DAG puede recibir `training_cutoff` por `dag_run.conf`, lo que permite simular backtesting sobre el dataset cerrado. Si no se pasa configuración, Airflow usa `data_interval_end`. Esto no permite simular una ventana productiva. 
+**Fecha de corte configurable.** El DAG puede recibir `training_cutoff` por `dag_run.conf`, lo que permite simular backtesting sobre el dataset cerrado. Si no se pasa configuración, Airflow usa `data_interval_end`. Para la demo de monitoreo se pasa un `training_cutoff` histórico por `dag_run.conf`, porque eso permite simular datos productivos posteriores al entrenamiento.
 
 **Forecast mensual.** La granularidad real del dataset y el modelo es mensual. La API devuelve una predicción por mes porque eso es lo que el modelo puede estimar con sentido.
 
-**Lazy loading del modelo en la API.** El modelo se carga desde MLflow en el primer request, no al arrancar el contenedor. Esto permite que la API esté disponible inmediatamente aunque todavía no exista un modelo registrado.
+**Lazy loading y recarga del modelo productivo.** La API carga el modelo desde MLflow en el primer request. Además, antes de cada predicción consulta qué versión está asociada al alias `production`; si el alias cambió por un nuevo entrenamiento de Airflow, recarga automáticamente esa versión.
 
 
 **Ray Serve con cola finita.** `max_queued_requests=100` es un trade-off explícito entre error rate y latencia: el sistema rechaza requests cuando está saturado en vez de acumular una cola ilimitada que haría crecer la latencia indefinidamente.
@@ -371,12 +375,30 @@ MLflow registra en cada entrenamiento:
 
 ## Troubleshooting
 
-### La API aparece como Exited (1) al levantar
+### MLflow no responde en http://localhost:5000
 
-Es esperable si todavía no existe un modelo registrado en MLflow. Después de que el DAG termine:
+Verificar que el puerto esté publicado:
 
 ```bash
-docker compose restart api
+docker compose ps -a
+```
+
+El servicio `mlflow` debería mostrar algo como:
+
+```text
+0.0.0.0:5000->5000/tcp
+```
+
+Si solo aparece `5000/tcp`, recrear el contenedor de MLflow sin borrar los volúmenes:
+
+```bash
+docker compose up -d --force-recreate --no-deps mlflow
+```
+
+Esperar unos segundos y volver a probar:
+
+```bash
+curl -I http://localhost:5000
 ```
 
 ### feast_apply_task falla con "Error parsing message"

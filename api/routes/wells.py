@@ -1,13 +1,18 @@
 from fastapi import APIRouter, HTTPException
 from datetime import date
 import pandas as pd
+from pydantic import BaseModel
 
 router = APIRouter()
 
 PARQUET_PATH = "/app/feature_store/data/well_features.parquet"
 
 
-@router.get("/wells")
+class WellResponse(BaseModel):
+    id_well: str
+
+
+@router.get("/wells", response_model=list[WellResponse])
 def wells(date_query: date):
     try:
         # Leer datos

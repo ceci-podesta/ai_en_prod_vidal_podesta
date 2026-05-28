@@ -85,7 +85,7 @@ curl -s -o /dev/null -w "HTTP %{http_code}\n" http://localhost:8000/docs
 curl "http://localhost:8000/api/v1/forecast?id_well=10073&date_start=2026-01-15&date_end=2026-04-20"
 ```
 
-Respuesta esperada: una prediccion mensual por mes incluido en el rango, sin `data` anidado.
+Respuesta esperada: un objeto con `id_well` y un campo `data` con una predicción mensual por mes incluido en el rango.
 
 ## 5. Troubleshooting permisos Airflow
 
